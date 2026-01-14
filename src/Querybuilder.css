@@ -1,0 +1,22 @@
+
+.query-builder-buttons {
+    display: flex;
+    justify-content: center;
+    margin-top: 20px;
+}
+
+.query-builder-buttons button {
+    background-color: white;
+    color: black;
+    font-weight: 600;
+    padding: 0.5em 1em;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    margin: 0 5px;
+}
+
+.query-builder-buttons button:hover {
+    background-color: #f0f0f0;
+}
