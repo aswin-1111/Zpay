@@ -1,15 +1,15 @@
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
+use arrow::array::*;
+use arrow::datatypes::*;
+use arrow::record_batch::RecordBatch;
+use parquet::arrow::ArrowWriter;
+use parquet::file::properties::WriterProperties;
+use std::collections::HashMap;
 use std::fs::File;
 use std::sync::Arc;
-use parquet::arrow::ArrowWriter;
-use arrow::array::*;
-use arrow::record_batch::RecordBatch;
-use arrow::datatypes::*;
-use std::collections::HashMap;
-use parquet::file::properties::WriterProperties;
 // use parquet::basic::Compression;
-use serde::{Deserialize, Serialize};
 use parquet::file::metadata::KeyValue;
+use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -50,7 +50,6 @@ pub struct Statement {
     pub transactions: Vec<Transaction>,
 }
 
-
 #[tauri::command]
 fn save_parquet(data: Statement) -> Result<(), String> {
     let schema = Arc::new(Schema::new(vec![
@@ -67,31 +66,52 @@ fn save_parquet(data: Statement) -> Result<(), String> {
         schema.clone(),
         vec![
             Arc::new(StringArray::from(
-                data.transactions.iter().map(|t| t.txn_date.clone()).collect::<Vec<_>>()
+                data.transactions
+                    .iter()
+                    .map(|t| t.txn_date.clone())
+                    .collect::<Vec<_>>(),
             )),
             Arc::new(StringArray::from(
-                data.transactions.iter().map(|t| t.value_date.clone()).collect::<Vec<_>>()
+                data.transactions
+                    .iter()
+                    .map(|t| t.value_date.clone())
+                    .collect::<Vec<_>>(),
             )),
             Arc::new(StringArray::from(
-                data.transactions.iter().map(|t| t.description.clone()).collect::<Vec<_>>()
+                data.transactions
+                    .iter()
+                    .map(|t| t.description.clone())
+                    .collect::<Vec<_>>(),
             )),
             Arc::new(StringArray::from(
-                data.transactions.iter().map(|t| t.reference.clone()).collect::<Vec<_>>()
+                data.transactions
+                    .iter()
+                    .map(|t| t.reference.clone())
+                    .collect::<Vec<_>>(),
             )),
             Arc::new(Float64Array::from(
-                data.transactions.iter().map(|t| t.debit).collect::<Vec<_>>()
+                data.transactions
+                    .iter()
+                    .map(|t| t.debit)
+                    .collect::<Vec<_>>(),
             )),
             Arc::new(Float64Array::from(
-                data.transactions.iter().map(|t| t.credit).collect::<Vec<_>>()
+                data.transactions
+                    .iter()
+                    .map(|t| t.credit)
+                    .collect::<Vec<_>>(),
             )),
             Arc::new(Float64Array::from(
-                data.transactions.iter().map(|t| t.balance).collect::<Vec<_>>()
+                data.transactions
+                    .iter()
+                    .map(|t| t.balance)
+                    .collect::<Vec<_>>(),
             )),
         ],
-    ).map_err(|e| e.to_string())?;
+    )
+    .map_err(|e| e.to_string())?;
 
-    let file = File::create("statement.parquet")
-        .map_err(|e| e.to_string())?;
+    let file = File::create("statement.parquet").map_err(|e| e.to_string())?;
 
     let metadata = account_to_metadata(&data.account);
 
@@ -108,9 +128,7 @@ fn save_parquet(data: Statement) -> Result<(), String> {
         .set_key_value_metadata(Some(key_value_metadata))
         .build();
 
-
-    let mut writer = ArrowWriter::try_new(file, schema, Some(props))
-        .map_err(|e| e.to_string())?;
+    let mut writer = ArrowWriter::try_new(file, schema, Some(props)).map_err(|e| e.to_string())?;
 
     writer.write(&batch).map_err(|e| e.to_string())?;
     writer.close().map_err(|e| e.to_string())?;
@@ -124,7 +142,10 @@ fn account_to_metadata(account: &AccountDetails) -> HashMap<String, String> {
     meta.insert("account_name".into(), account.account_name.clone());
     meta.insert("address".into(), account.address.clone());
     meta.insert("account_number".into(), account.account_number.clone());
-    meta.insert("account_description".into(), account.account_description.clone());
+    meta.insert(
+        "account_description".into(),
+        account.account_description.clone(),
+    );
     meta.insert("branch".into(), account.branch.clone());
     meta.insert("cif".into(), account.cif.clone());
     meta.insert("ifsc".into(), account.ifsc.clone());
@@ -145,17 +166,21 @@ fn account_to_metadata(account: &AccountDetails) -> HashMap<String, String> {
     );
 
     meta.insert("interest_rate".into(), account.interest_rate.to_string());
-    meta.insert("opening_balance".into(), account.opening_balance.to_string());
+    meta.insert(
+        "opening_balance".into(),
+        account.opening_balance.to_string(),
+    );
 
     meta
 }
 
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![save_parquet, save_json_dialog])
+        .invoke_handler(tauri::generate_handler![save_parquet])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

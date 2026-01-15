@@ -3,5 +3,4 @@
 
 fn main() {
     zpay_lib::run()
-
 }
