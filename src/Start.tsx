@@ -32,7 +32,7 @@ function StartPage() {
         </div>
       </div>
       {/* Remove this later */}
-      <button className="proceed-button" onClick={()=>navigate("/querybuilder")}>QueryBuilder</button>
+      <button className="proceed-button" onClick={() => navigate("/dashboard")}>Dashboard</button>
     </main>
   );
 }

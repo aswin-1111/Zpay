@@ -3,14 +3,12 @@ import "./App.css";
 import StartPage from "./Start";
 import DashboardPage from "./Dashboard";
 import Loading from "./Loading";
-import QueryBuilderPage from "./Querybuilder";
 
 function App() {
   return (
     <Routes>
       <Route path="/" element={<StartPage />} />
       <Route path="/dashboard" element={<DashboardPage />} />
-      <Route path="/querybuilder" element={<QueryBuilderPage />} />
       <Route path="/loading" element={<Loading />} />
     </Routes>
   );

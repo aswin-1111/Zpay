@@ -5,8 +5,6 @@ import { useLocation, useNavigate } from "react-router-dom";
 import "./App.css";
 import * as XLSX from "xlsx";
 
-
-<div className="loader"></div>
 function Loader() {
     const navigate = useNavigate();
     const location = useLocation();
@@ -25,11 +23,11 @@ function Loader() {
                 await invoke("save_parquet", {
                     data: parsed,
                 });
-
+                
                 navigate("/dashboard");
-            } catch (err) {
+              } catch (err) {
                 console.error(err);
-                navigate("/dashboard");
+                navigate("/");
             }
         };
 
