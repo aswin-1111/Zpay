@@ -36,7 +36,9 @@ function Loader() {
     }, [file, navigate]);
   
     return (
-        <div className="loader"></div>
+        <div className="app-page app-page--centered">
+            <div className="loading-spinner"></div>
+        </div>
     );
 }
 

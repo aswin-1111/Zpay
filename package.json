@@ -10,6 +10,7 @@
     "tauri": "tauri"
   },
   "dependencies": {
+    "@kanaries/graphic-walker": "^0.5.0-alpha.4",
     "@superset-ui/embedded-sdk": "^0.3.0",
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-dialog": "^2.6.0",
@@ -19,6 +20,7 @@
     "react-dom": "^19.1.0",
     "react-querybuilder": "^8.13.0",
     "react-router-dom": "^7.10.1",
+    "styled-components": "^6.4.0",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {

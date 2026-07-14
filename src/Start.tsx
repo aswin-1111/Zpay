@@ -14,25 +14,25 @@ function StartPage() {
   };
 
   return (
-    <main className="container">
+    <main className="app-page app-page--centered">
       <h1>Upload File</h1>
       <div className="input-group">
-        <label className="file-label">Select Excel File</label>
+        <label className="form-label">Select Excel File</label>
         <br />
-        <div className="input-button-row">
+        <div className="row-inline">
           <input
             type="file"
             accept=".xlsx, .xls"
-            className="file-input"
+            className="input-file"
             onChange={(e) => setFile(e.target.files ? e.target.files[0] : null)}
           />
-          <button className="proceed-button" disabled={!file} onClick={handleProceed}>
+          <button className="btn" disabled={!file} onClick={handleProceed}>
             Proceed
           </button>
         </div>
       </div>
       {/* Remove this later */}
-      <button className="proceed-button" onClick={() => navigate("/dashboard")}>Dashboard</button>
+      <button className="btn" onClick={() => navigate("/dashboard")}>Dashboard</button>
     </main>
   );
 }
