@@ -1,31 +1,38 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { GraphicWalker } from "@kanaries/graphic-walker";
-import type { IMutField } from "@kanaries/graphic-walker";
-// import "@kanaries/graphic-walker/dist/style.css";
+import { listen } from "@tauri-apps/api/event";
+import type { IChart } from "@kanaries/graphic-walker";
 import "./App.css";
 
-export default function DashboardPage() {
-  const sampleData = [
-    { month: "Jan", channel: "UPI", users: 1240, revenue: 18600 },
-    { month: "Jan", channel: "Card", users: 860, revenue: 14700 },
-    { month: "Feb", channel: "UPI", users: 1390, revenue: 21420 },
-    { month: "Feb", channel: "Card", users: 910, revenue: 15640 },
-    { month: "Mar", channel: "UPI", users: 1550, revenue: 24230 },
-    { month: "Mar", channel: "Card", users: 980, revenue: 16810 },
-    { month: "Apr", channel: "UPI", users: 1710, revenue: 26950 },
-    { month: "Apr", channel: "Card", users: 1060, revenue: 18240 },
-  ];
+import {
+  loadStatementFromParquet,
+  buildEnrichedDataset,
+  computeSummaryStats,
+} from "./data/statement";
+import type { AccountDetails, Transaction } from "./parser";
+import { useDashboardStore } from "./store/dashboardStore";
+import { DashboardDataProvider } from "./context/DashboardDataContext";
+import EmptyDashboardState from "./components/dashboard/EmptyDashboardState";
+import DashboardToolbar from "./components/dashboard/DashboardToolbar";
+import AccountSummary from "./components/dashboard/AccountSummary";
+import DashboardGrid from "./components/dashboard/DashboardGrid";
 
-  const sampleFields: IMutField[] = [
-    { fid: "month", name: "month", analyticType: "dimension", semanticType: "nominal" },
-    { fid: "channel", name: "channel", analyticType: "dimension", semanticType: "nominal" },
-    { fid: "users", name: "users", analyticType: "measure", semanticType: "quantitative" },
-    { fid: "revenue", name: "revenue", analyticType: "measure", semanticType: "quantitative" },
-  ];
+type LoadState =
+  | { status: "loading" }
+  | { status: "no-statement" }
+  | { status: "ready"; account: AccountDetails; transactions: Transaction[] };
+
+export default function DashboardPage() {
+  const navigate = useNavigate();
+  const [state, setState] = useState<LoadState>({ status: "loading" });
+  const dashboards = useDashboardStore((s) => s.dashboards);
+  const load = useDashboardStore((s) => s.load);
+  const updatePanelChart = useDashboardStore((s) => s.updatePanelChart);
+  const activeDashboardId = useDashboardStore((s) => s.activeDashboardId);
 
   useEffect(() => {
-    async function loadDashboard() {
+    async function init() {
       const appWindow = getCurrentWindow();
       try {
         await appWindow.maximize();
@@ -33,27 +40,81 @@ export default function DashboardPage() {
         console.error("Failed to maximize:", e);
       }
 
+      try {
+        const statement = await loadStatementFromParquet();
+        setState({
+          status: "ready",
+          account: statement.account,
+          transactions: statement.transactions,
+        });
+      } catch (e) {
+        console.error("No statement available:", e);
+        setState({ status: "no-statement" });
+        return;
+      }
+
+      await load();
     }
 
-    loadDashboard();
-  }, []);
+    init();
+  }, [load]);
+
+  // The chart editor runs in its own Tauri window (so GraphicWalker gets full
+  // screen space instead of being clipped inside a modal) and reports back here.
+  useEffect(() => {
+    const unlisten = listen<{ dashboardId: string; panelId: string; chart: IChart }>(
+      "zpay://chart-saved",
+      (event) => {
+        const { dashboardId, panelId, chart } = event.payload;
+        if (dashboardId === activeDashboardId) {
+          updatePanelChart(panelId, chart);
+        }
+      }
+    );
+    return () => {
+      unlisten.then((fn) => fn());
+    };
+  }, [activeDashboardId, updatePanelChart]);
+
+  if (state.status === "loading") {
+    return (
+      <div className="app-page app-page--centered">
+        <div className="loading-spinner" />
+      </div>
+    );
+  }
+
+  if (state.status === "no-statement") {
+    return (
+      <main className="app-page app-page--centered">
+        <h1>No statement loaded</h1>
+        <p>Upload a bank statement first to see a dashboard.</p>
+        <button className="btn" onClick={() => navigate("/")}>
+          Back to upload
+        </button>
+      </main>
+    );
+  }
+
+  const { account, transactions } = state;
+  const { data, fields } = buildEnrichedDataset(transactions);
+  const stats = computeSummaryStats(account, transactions);
 
   return (
     <div className="app-shell">
-      <div className="app-surface">
-        <GraphicWalker
-          data={sampleData}
-          fields={sampleFields}
-          keepAlive={false}
-          appearance="dark"
-          style={{ height: "100%" }}
-          defaultConfig={{
-            layout: {
-              showTableSummary: true,
-            },
-          }}
-        />
-      </div>
+      <DashboardDataProvider value={{ data, fields, account, stats }}>
+        <div className="app-surface dashboard-surface">
+          {dashboards.length > 0 ? (
+            <>
+              <AccountSummary />
+              <DashboardToolbar />
+              <DashboardGrid />
+            </>
+          ) : (
+            <EmptyDashboardState />
+          )}
+        </div>
+      </DashboardDataProvider>
     </div>
   );
 }

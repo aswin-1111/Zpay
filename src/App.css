@@ -129,3 +129,361 @@ input[type="file"]::file-selector-button {
     transform: rotate(360deg);
   }
 }
+
+/* Buttons */
+.btn-secondary {
+  color: var(--color-fg-primary);
+  background-color: var(--color-bg-tertiary);
+}
+
+.btn-icon {
+  padding: 6px 10px;
+  font-size: 0.8em;
+}
+
+.btn-danger {
+  background-color: #4a1b0c;
+  color: #f0997b;
+}
+
+.form-error {
+  color: #f0997b;
+  font-size: 0.85em;
+  margin: 6px 0 0;
+}
+
+/* Dashboard shell */
+.dashboard-surface {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  text-align: left;
+  color: var(--color-fg-primary);
+}
+
+.empty-dashboard-state {
+  margin: auto;
+  text-align: center;
+  max-width: 420px;
+}
+
+.empty-dashboard-state p {
+  color: var(--color-fg-primary);
+  opacity: 0.75;
+  margin-bottom: 16px;
+}
+
+/* Account summary */
+.account-summary {
+  flex-shrink: 0;
+  padding: 14px 20px;
+  background-color: var(--color-bg-secondary);
+  border-bottom: 1px solid var(--color-bg-tertiary);
+}
+
+.account-summary-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.account-summary-title {
+  font-size: 1.1em;
+  font-weight: 600;
+}
+
+.account-summary-sub {
+  font-size: 0.85em;
+  opacity: 0.7;
+  margin-top: 2px;
+}
+
+.dashboard-kpi-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.kpi-card {
+  flex: 1 1 150px;
+  background-color: var(--color-bg-tertiary);
+  border-radius: var(--radius-md);
+  padding: 10px 14px;
+  box-shadow: var(--shadow-sm);
+}
+
+.kpi-card-label {
+  font-size: 0.75em;
+  opacity: 0.7;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.kpi-card-value {
+  font-size: 1.2em;
+  font-weight: 600;
+  margin-top: 4px;
+}
+
+/* Toolbar */
+.dashboard-toolbar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 20px;
+  background-color: var(--color-bg-secondary);
+  border-bottom: 1px solid var(--color-bg-tertiary);
+  position: relative;
+}
+
+.dashboard-toolbar-identity {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.dashboard-switcher {
+  font-family: inherit;
+  font-size: 0.85em;
+  color: var(--color-fg-primary);
+  background-color: var(--color-bg-tertiary);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  padding: 6px 8px;
+  max-width: 220px;
+}
+
+.dashboard-name-input {
+  font-family: inherit;
+  font-size: 1em;
+  font-weight: 600;
+  color: var(--color-fg-primary);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  padding: 6px 8px;
+  min-width: 160px;
+}
+
+.dashboard-name-input:hover,
+.dashboard-name-input:focus {
+  border-color: var(--color-bg-tertiary);
+  outline: none;
+}
+
+.dashboard-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  position: relative;
+}
+
+.dashboard-add-panel {
+  position: relative;
+}
+
+.dashboard-add-panel-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 6px;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--color-bg-tertiary);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+  z-index: 20;
+  min-width: 140px;
+}
+
+.dashboard-add-panel-menu button {
+  font-family: inherit;
+  text-align: left;
+  padding: 8px 14px;
+  background: none;
+  border: none;
+  color: var(--color-fg-primary);
+  cursor: pointer;
+  font-size: 0.9em;
+}
+
+.dashboard-add-panel-menu button:hover {
+  background-color: var(--color-bg-secondary);
+}
+
+/* Grid + panels */
+.dashboard-grid-container {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 16px 20px;
+}
+
+.panel {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--color-bg-secondary);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+
+.panel-header {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 8px;
+  background-color: var(--color-bg-tertiary);
+  cursor: move;
+}
+
+.panel-title-input {
+  font-family: inherit;
+  font-size: 0.9em;
+  font-weight: 500;
+  color: var(--color-fg-primary);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  padding: 4px 6px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.panel-title-input:hover,
+.panel-title-input:focus {
+  border-color: var(--color-bg-secondary);
+  outline: none;
+}
+
+.panel-header-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.panel-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  position: relative;
+}
+
+.panel-placeholder {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-fg-primary);
+  opacity: 0.5;
+  font-size: 0.9em;
+  text-align: center;
+  padding: 12px;
+}
+
+/* KPI panel */
+.kpi-panel {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 12px;
+}
+
+.kpi-panel-value {
+  font-size: 1.8em;
+}
+
+/* Text panel */
+.text-panel-content {
+  height: 100%;
+  overflow: auto;
+  padding: 12px 16px;
+  font-size: 0.9em;
+  line-height: 1.5;
+}
+
+.text-panel-placeholder {
+  opacity: 0.5;
+}
+
+.text-panel-editor {
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  resize: none;
+  border: none;
+  padding: 12px 16px;
+  font-family: inherit;
+  font-size: 0.9em;
+  line-height: 1.5;
+  background-color: var(--color-bg-secondary);
+  color: var(--color-fg-primary);
+}
+
+.text-panel-editor:focus {
+  outline: none;
+}
+
+/* Chart editor (its own Tauri window, full page) */
+.chart-editor-page {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--color-bg-primary);
+  overflow: hidden;
+}
+
+.chart-editor-header {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  background-color: var(--color-bg-secondary);
+  border-bottom: 1px solid var(--color-bg-tertiary);
+}
+
+.chart-editor-header h3 {
+  margin: 0;
+  font-size: 1em;
+  color: var(--color-fg-primary);
+}
+
+.chart-editor-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+}
+
+/* react-grid-layout's default resize handle is a barely-visible dark smudge —
+   invisible against this dark theme. Make it a clearly visible accent-colored
+   corner so users can actually find and grab it. */
+.react-resizable-handle {
+  z-index: 10;
+  width: 24px !important;
+  height: 24px !important;
+}
+
+.react-grid-item > .react-resizable-handle::after {
+  width: 9px !important;
+  height: 9px !important;
+  border-right: 2px solid var(--color-accent) !important;
+  border-bottom: 2px solid var(--color-accent) !important;
+  opacity: 0.85;
+}

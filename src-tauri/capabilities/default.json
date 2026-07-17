@@ -3,7 +3,8 @@
   "identifier": "default",
   "description": "Capability for the main window",
   "windows": [
-    "main"
+    "main",
+    "chart-editor"
   ],
   "permissions": [
     "core:default",
@@ -12,7 +13,9 @@
 
     "fs:allow-read-text-file",
     "fs:allow-write-text-file",
-  
-    "core:window:allow-maximize"
+
+    "core:window:allow-maximize",
+    "core:window:allow-close",
+    "core:webview:allow-create-webview-window"
   ]
 }

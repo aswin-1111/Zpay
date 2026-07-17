@@ -18,10 +18,13 @@
     "@tauri-apps/plugin-opener": "^2",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
+    "react-grid-layout": "^2.2.3",
     "react-querybuilder": "^8.13.0",
     "react-router-dom": "^7.10.1",
     "styled-components": "^6.4.0",
-    "xlsx": "^0.18.5"
+    "xlsx": "^0.18.5",
+    "zod": "^4.4.3",
+    "zustand": "^5.0.14"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2",
