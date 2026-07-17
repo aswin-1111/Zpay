@@ -1,23 +1,32 @@
 # Zpay
 
-Zpay is a **work-in-progress desktop app** that takes a bank statement file and builds an interactive dashboard with graphs, plots, and key financial metrics.
+Zpay is a desktop app for turning bank statement Excel files into interactive, reusable dashboards.
 
 ## Current status
 
 🚧 This project is under active development.
 
-What currently exists:
-- Upload flow for Excel bank statements (`.xlsx`, `.xls`)
-- Statement parsing into account details + transactions
-- Conversion to parquet using the Tauri (Rust) backend
-- Dashboard route wired with interactive charting tooling
+### Available functionality
 
-## What the app is intended to do
+- Upload and process bank statement files (`.xlsx`, `.xls`)
+- Parse account details and transaction rows from statement sheets
+- Persist parsed statement data as parquet via the Tauri (Rust) backend
+- Open a full dashboard workspace for the latest processed statement
+- View account summary KPIs (current balance, debits, credits, net flow, average transaction, most active day)
+- Create multiple dashboards per statement and switch between them
+- Rename, create, and delete dashboards
+- Add, edit, duplicate, resize, drag, and delete panels in edit mode
+- Build visual chart panels with a dedicated chart editor window
+- Add KPI and markdown text panels
+- Import/export dashboards as `.zpaydash`/`.json` files
+- Autosave dashboard collections locally
 
-1. Accept a bank statement file
-2. Parse and structure transaction data
-3. Generate a dashboard view
-4. Let users explore trends through visuals and metrics
+## App flow
+
+1. Upload a bank statement file
+2. Parse and structure account + transaction data
+3. Save parsed data for desktop-side reads
+4. Open or create dashboards and explore data visually
 
 ## Tech stack
 
@@ -26,6 +35,7 @@ What currently exists:
 - **Backend (desktop command):** Rust
 - **Data parsing:** `xlsx`
 - **Visualization:** `@kanaries/graphic-walker`
+- **State management:** `zustand`
 
 ## Getting started
 
@@ -55,16 +65,11 @@ npm run build
 
 ## Project structure
 
-- `/src` – React app (upload, loading, dashboard, parser)
+- `/src` – React app (upload flow, parser, loading flow, dashboard workspace)
+- `/src/components/dashboard` – dashboard UI, toolbar, grid and panel types
+- `/src/store` – dashboard editing and autosave state
 - `/src-tauri` – Tauri/Rust backend and desktop configuration
-
-## Roadmap (WIP)
-
-- Replace sample dashboard data with parsed statement data
-- Add derived metrics (spend categories, monthly summaries, cashflow)
-- Improve error handling for varied bank statement formats
-- Add tests and production hardening
 
 ## Notes
 
-This repository is experimental right now; expect frequent changes.
+This repository is still evolving quickly; expect frequent changes.
