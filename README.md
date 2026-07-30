@@ -1,40 +1,78 @@
 # Zpay
 
-Zpay is a desktop app for turning bank statement Excel files into interactive, reusable dashboards.
+Zpay is a Tauri desktop app that converts bank statement Excel files into reusable, interactive analytics dashboards.
 
-## Current status
-
-🚧 This project is under active development.
-
-### Available functionality
+## What the app does today
 
 - Upload and process bank statement files (`.xlsx`, `.xls`)
-- Parse account details and transaction rows from statement sheets
-- Persist parsed statement data as parquet via the Tauri (Rust) backend
-- Open a full dashboard workspace for the latest processed statement
-- View account summary KPIs (current balance, debits, credits, net flow, average transaction, most active day)
-- Create multiple dashboards per statement and switch between them
-- Rename, create, and delete dashboards
-- Add, edit, duplicate, resize, drag, and delete panels in edit mode
-- Build visual chart panels with a dedicated chart editor window
-- Add KPI and markdown text panels
-- Import/export dashboards as `.zpaydash`/`.json` files
+- Parse account metadata and transaction rows from the sheet
+- Save parsed statements through the Tauri backend for later reuse
+- Open a **Saved statements** window to browse, reopen, and delete stored statements
+- Launch a dashboard workspace for a selected statement
+- Show account-level KPI summaries (balance, credits, debits, net flow, average transaction, busiest day)
+- Manage multiple dashboards per statement (create, rename, switch, delete)
+- Edit dashboard layouts (add, move, resize, duplicate, remove panels)
+- Build chart panels in a dedicated full-window chart editor
+- Add KPI and markdown/text panels
+- Import/export dashboard definitions (`.zpaydash` / `.json`)
 - Autosave dashboard collections locally
 
 ## App flow
 
-1. Upload a bank statement file
-2. Parse and structure account + transaction data
-3. Save parsed data for desktop-side reads
-4. Open or create dashboards and explore data visually
+1. Upload an Excel statement file
+2. Parse account + transaction data in the frontend
+3. Persist the parsed statement via Tauri commands
+4. Open dashboards for the new statement (or reopen from Saved statements)
+5. Build and manage visual dashboards
 
 ## Tech stack
 
-- **Frontend:** React + TypeScript + Vite
-- **Desktop runtime:** Tauri
-- **Backend (desktop command):** Rust
+- **Frontend:** React 19 + TypeScript + Vite
+- **Desktop runtime:** Tauri 2
+- **Backend layer:** Rust commands exposed through Tauri
 - **Data parsing:** `xlsx`
 - **Visualization:** `@kanaries/graphic-walker`
+- **State management:** `zustand`
+
+## Getting started
+
+### Prerequisites
+
+- Node.js and npm
+- Rust toolchain
+- Tauri prerequisites for your OS
+
+### Install dependencies
+
+```bash
+npm install
+```
+
+### Run the desktop app in development
+
+```bash
+npm run tauri dev
+```
+
+### Build the frontend bundle
+
+```bash
+npm run build
+```
+
+### Build the desktop app package
+
+```bash
+npm run tauri build
+```
+
+## Project structure
+
+- `/src` - main React app (upload, loading, dashboard, and secondary windows)
+- `/src/components/dashboard` - dashboard toolbar, grid, panels, and sidebar widgets
+- `/src/store` - statement and dashboard state management
+- `/src/data` - statement loading, enrichment, and summary utilities
+- `/src-tauri` - Rust/Tauri backend commands and desktop configuration
 - **State management:** `zustand`
 
 ## Getting started
