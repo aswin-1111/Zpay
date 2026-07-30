@@ -19,12 +19,16 @@ function Loader() {
         const processFile = async () => {
             try {
                 const parsed = await parseBankStatement(file);
+                const statementId = crypto.randomUUID();
 
-                await invoke("save_parquet", {
+                await invoke("save_statement", {
                     data: parsed,
+                    id: statementId,
+                    originalFileName: file.name,
+                    savedAt: new Date().toISOString(),
                 });
-                
-                navigate("/dashboard");
+
+                navigate("/dashboard", { state: { statementId } });
               } catch (err) {
                 console.error(err);
                 navigate("/");

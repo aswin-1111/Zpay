@@ -10,8 +10,14 @@ const DASHBOARD_FILTERS = [
 export default function EmptyDashboardState() {
   const createNew = useDashboardStore((s) => s.createNew);
   const importFromFile = useDashboardStore((s) => s.importFromFile);
+  const selectStatement = useDashboardStore((s) => s.selectStatement);
+  const activeStatementId = useDashboardStore((s) => s.activeStatementId);
   const [error, setError] = useState<string | null>(null);
   const importing = useRef(false);
+
+  const handleCreateDefault = () => {
+    if (activeStatementId) selectStatement(activeStatementId);
+  };
 
   const handleImport = async () => {
     if (importing.current) return;
@@ -36,8 +42,11 @@ export default function EmptyDashboardState() {
       <h2>No dashboard yet</h2>
       <p>Create a new dashboard for this statement, or import one you saved earlier.</p>
       <div className="row-inline">
-        <button className="btn" onClick={() => createNew()}>
-          Create new dashboard
+        <button className="btn" onClick={handleCreateDefault}>
+          Create default dashboard
+        </button>
+        <button className="btn btn-secondary" onClick={() => createNew()}>
+          Create blank dashboard
         </button>
         <button className="btn btn-secondary" onClick={handleImport}>
           Import dashboard

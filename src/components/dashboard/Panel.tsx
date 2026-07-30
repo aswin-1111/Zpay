@@ -25,8 +25,8 @@ export default function Panel({
 
   return (
     <div className="panel">
-      {editMode && (
-        <div className="panel-header panel-drag-handle">
+      <div className={`panel-header ${editMode ? "panel-drag-handle" : ""}`}>
+        {editMode ? (
           <input
             className="panel-title-input"
             value={titleDraft}
@@ -35,6 +35,10 @@ export default function Panel({
               if (titleDraft !== panel.title) updatePanelTitle(panel.id, titleDraft);
             }}
           />
+        ) : (
+          <div className="panel-title-text">{panel.title}</div>
+        )}
+        {editMode && (
           <div className="panel-header-actions">
             {panel.config.kind === "chart" && (
               <button
@@ -56,8 +60,8 @@ export default function Panel({
               Delete
             </button>
           </div>
-        </div>
-      )}
+        )}
+      </div>
       <div className="panel-body">
         {panel.config.kind === "chart" &&
           (panel.config.chart ? (

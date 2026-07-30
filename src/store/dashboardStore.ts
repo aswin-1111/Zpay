@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { create } from "zustand";
 import { invoke } from "@tauri-apps/api/core";
 import type { IChart } from "@kanaries/graphic-walker";
@@ -13,6 +14,7 @@ import {
 } from "../types/dashboard";
 import type { DashboardFile } from "../types/dashboard";
 import { validateDashboardCollection, validateDashboardFile } from "../types/dashboardSchema";
+import { createDefaultDashboard } from "../lib/defaultDashboard";
 
 const AUTOSAVE_DEBOUNCE_MS = 800;
 
@@ -22,14 +24,23 @@ const DEFAULT_SIZE: Record<PanelKind, { w: number; h: number }> = {
   text: { w: 4, h: 4 },
 };
 
+export const MIN_SIZE: Record<PanelKind, { minW: number; minH: number }> = {
+  chart: { minW: 3, minH: 4 },
+  kpi: { minW: 2, minH: 3 },
+  text: { minW: 2, minH: 2 },
+};
+
 let autosaveTimer: ReturnType<typeof setTimeout> | null = null;
 
 type DashboardStore = {
   dashboards: DashboardSpec[];
   activeDashboardId: string | null;
+  activeStatementId: string | null;
   editMode: boolean;
 
   load: () => Promise<void>;
+  selectStatement: (statementId: string) => void;
+  dropDashboardsForStatement: (statementId: string) => void;
   createNew: (name?: string) => void;
   selectDashboard: (id: string) => void;
   deleteDashboard: (id: string) => void;
@@ -50,8 +61,8 @@ type DashboardStore = {
 function scheduleAutosave(get: () => DashboardStore) {
   if (autosaveTimer) clearTimeout(autosaveTimer);
   autosaveTimer = setTimeout(() => {
-    const { dashboards, activeDashboardId } = get();
-    const file = buildDashboardCollectionFile(dashboards, activeDashboardId);
+    const { dashboards, activeDashboardId, activeStatementId } = get();
+    const file = buildDashboardCollectionFile(dashboards, activeDashboardId, activeStatementId);
     invoke("save_dashboards", { contents: JSON.stringify(file) }).catch((err) => {
       console.error("Failed to autosave dashboards:", err);
     });
@@ -82,31 +93,65 @@ function updateActive(
 export const useDashboardStore = create<DashboardStore>((set, get) => ({
   dashboards: [],
   activeDashboardId: null,
+  activeStatementId: null,
   editMode: false,
 
   load: async () => {
     const raw = await invoke<string | null>("load_dashboards");
     if (!raw) {
-      set({ dashboards: [], activeDashboardId: null, editMode: false });
+      set({ dashboards: [], activeDashboardId: null, activeStatementId: null, editMode: false });
       return;
     }
     const result = validateDashboardCollection(JSON.parse(raw));
     if (!result.ok) {
       console.error("Stored dashboards failed validation:", result.error);
-      set({ dashboards: [], activeDashboardId: null, editMode: false });
+      set({ dashboards: [], activeDashboardId: null, activeStatementId: null, editMode: false });
       return;
     }
-    const { dashboards, activeDashboardId } = result.data;
+    const { dashboards, activeDashboardId, activeStatementId } = result.data;
     const validActiveId =
       activeDashboardId && dashboards.some((d) => d.id === activeDashboardId)
         ? activeDashboardId
         : (dashboards[0]?.id ?? null);
-    set({ dashboards, activeDashboardId: validActiveId, editMode: false });
+    set({ dashboards, activeDashboardId: validActiveId, activeStatementId, editMode: false });
+  },
+
+  // Switches to the given statement. If it has no dashboards yet, a populated
+  // default one is created for it immediately (rather than showing an empty grid).
+  selectStatement: (statementId) => {
+    const { dashboards } = get();
+    const existing = dashboards.filter((d) => d.statementId === statementId);
+    if (existing.length > 0) {
+      set({ activeStatementId: statementId, activeDashboardId: existing[0].id, editMode: false });
+      return;
+    }
+    const dashboard = createDefaultDashboard(statementId);
+    set({
+      dashboards: [...dashboards, dashboard],
+      activeStatementId: statementId,
+      activeDashboardId: dashboard.id,
+      editMode: false,
+    });
+    scheduleAutosave(get);
+  },
+
+  dropDashboardsForStatement: (statementId) => {
+    const { dashboards, activeDashboardId, activeStatementId } = get();
+    const remaining = dashboards.filter((d) => d.statementId !== statementId);
+    const stillHasActiveDashboard = remaining.some((d) => d.id === activeDashboardId);
+    set({
+      dashboards: remaining,
+      activeDashboardId: stillHasActiveDashboard ? activeDashboardId : (remaining[0]?.id ?? null),
+      activeStatementId: activeStatementId === statementId ? null : activeStatementId,
+    });
+    scheduleAutosave(get);
   },
 
   createNew: (name) => {
-    const { dashboards } = get();
-    const dashboard = createEmptyDashboard(name ?? `Dashboard ${dashboards.length + 1}`);
+    const { dashboards, activeStatementId } = get();
+    if (!activeStatementId) return;
+    const count = dashboards.filter((d) => d.statementId === activeStatementId).length;
+    const dashboard = createEmptyDashboard(activeStatementId, name ?? `Dashboard ${count + 1}`);
     set({
       dashboards: [...dashboards, dashboard],
       activeDashboardId: dashboard.id,
@@ -120,12 +165,17 @@ export const useDashboardStore = create<DashboardStore>((set, get) => ({
   },
 
   deleteDashboard: (id) => {
-    const { dashboards, activeDashboardId } = get();
+    const { dashboards, activeDashboardId, activeStatementId } = get();
+    const target = dashboards.find((d) => d.id === id);
     const remaining = dashboards.filter((d) => d.id !== id);
+    const siblingId =
+      target != null
+        ? remaining.find((d) => d.statementId === target.statementId)?.id ?? null
+        : null;
     set({
       dashboards: remaining,
-      activeDashboardId:
-        activeDashboardId === id ? (remaining[0]?.id ?? null) : activeDashboardId,
+      activeStatementId,
+      activeDashboardId: activeDashboardId === id ? siblingId : activeDashboardId,
     });
     scheduleAutosave(get);
   },
@@ -139,6 +189,9 @@ export const useDashboardStore = create<DashboardStore>((set, get) => ({
   },
 
   importFromFile: (contents) => {
+    const { activeStatementId } = get();
+    if (!activeStatementId) return { ok: false, error: "No statement is currently open." };
+
     let json: unknown;
     try {
       json = JSON.parse(contents);
@@ -148,9 +201,14 @@ export const useDashboardStore = create<DashboardStore>((set, get) => ({
     const result = validateDashboardFile(json);
     if (!result.ok) return { ok: false, error: result.error };
 
-    // Assign a fresh id in case this file was exported from this same app instance
-    // and would otherwise collide with a dashboard already in the collection.
-    const imported: DashboardSpec = { ...result.data.dashboard, id: crypto.randomUUID() };
+    // Assign a fresh id (in case this file was exported from this same app instance)
+    // and re-tag it to whichever statement is currently open — the statement id it
+    // was originally exported with may not exist in this install.
+    const imported: DashboardSpec = {
+      ...result.data.dashboard,
+      id: crypto.randomUUID(),
+      statementId: activeStatementId,
+    };
 
     const { dashboards } = get();
     set({
@@ -247,4 +305,23 @@ export const useDashboardStore = create<DashboardStore>((set, get) => ({
 
 export function useActiveDashboard(): DashboardSpec | null {
   return useDashboardStore((s) => s.dashboards.find((d) => d.id === s.activeDashboardId) ?? null);
+}
+
+const EMPTY_DASHBOARDS: DashboardSpec[] = [];
+
+export function useDashboardsForActiveStatement(): DashboardSpec[] {
+  // `.filter()` builds a new array on every call; selecting the raw state and
+  // memoizing here (rather than filtering inside the zustand selector) keeps the
+  // returned reference stable across renders when nothing actually changed —
+  // otherwise useSyncExternalStore sees a "new" snapshot every render and spins
+  // into an infinite update loop.
+  const dashboards = useDashboardStore((s) => s.dashboards);
+  const activeStatementId = useDashboardStore((s) => s.activeStatementId);
+  return useMemo(
+    () =>
+      activeStatementId
+        ? dashboards.filter((d) => d.statementId === activeStatementId)
+        : EMPTY_DASHBOARDS,
+    [dashboards, activeStatementId]
+  );
 }

@@ -4,13 +4,19 @@ import StartPage from "./Start";
 import DashboardPage from "./Dashboard";
 import Loading from "./Loading";
 import ChartEditorWindow from "./ChartEditorWindow";
+import StatementsWindow from "./StatementsWindow";
 
 function App() {
-  // The chart editor opens as a separate Tauri window pointed at
-  // index.html?editor=chart&... — handled here, before the router, since it's
-  // a distinct top-level window rather than a route within the main app.
-  if (new URLSearchParams(window.location.search).get("editor") === "chart") {
+  // The chart editor and the saved-statements list each open as a separate Tauri
+  // window pointed at index.html?editor=chart&... / ?window=statements — handled
+  // here, before the router, since they're distinct top-level windows rather than
+  // routes within the main app.
+  const params = new URLSearchParams(window.location.search);
+  if (params.get("editor") === "chart") {
     return <ChartEditorWindow />;
+  }
+  if (params.get("window") === "statements") {
+    return <StatementsWindow />;
   }
 
   return (

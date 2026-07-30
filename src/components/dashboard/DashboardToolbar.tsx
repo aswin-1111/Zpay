@@ -1,7 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { invoke } from "@tauri-apps/api/core";
-import { useDashboardStore, useActiveDashboard } from "../../store/dashboardStore";
+import {
+  useDashboardStore,
+  useActiveDashboard,
+  useDashboardsForActiveStatement,
+} from "../../store/dashboardStore";
+import { openSavedStatementsWindow } from "../../lib/statementsWindow";
 import type { PanelKind } from "../../types/dashboard";
 
 const DASHBOARD_FILTERS = [
@@ -10,7 +15,7 @@ const DASHBOARD_FILTERS = [
 
 export default function DashboardToolbar() {
   const dashboard = useActiveDashboard();
-  const dashboards = useDashboardStore((s) => s.dashboards);
+  const dashboards = useDashboardsForActiveStatement();
   const editMode = useDashboardStore((s) => s.editMode);
   const setEditMode = useDashboardStore((s) => s.setEditMode);
   const renameDashboard = useDashboardStore((s) => s.renameDashboard);
@@ -142,6 +147,9 @@ export default function DashboardToolbar() {
         </button>
         <button className="btn btn-secondary btn-danger" onClick={handleDelete}>
           Delete
+        </button>
+        <button className="btn btn-secondary" onClick={() => openSavedStatementsWindow()}>
+          Saved statements
         </button>
       </div>
 

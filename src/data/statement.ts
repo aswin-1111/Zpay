@@ -38,11 +38,11 @@ function parseIsoDate(value: string | null): Date | null {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
-export async function loadStatementFromParquet(): Promise<{
+export async function loadStatementFromParquet(statementId: string): Promise<{
   account: AccountDetails;
   transactions: Transaction[];
 }> {
-  const raw = await invoke<RawStatement>("load_parquet");
+  const raw = await invoke<RawStatement>("load_statement", { id: statementId });
 
   const account: AccountDetails = {
     ...raw.account,

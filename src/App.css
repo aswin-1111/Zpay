@@ -155,12 +155,21 @@ input[type="file"]::file-selector-button {
 /* Dashboard shell */
 .dashboard-surface {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   height: 100%;
   min-height: 0;
   overflow: hidden;
   text-align: left;
   color: var(--color-fg-primary);
+}
+
+.dashboard-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
 }
 
 .empty-dashboard-state {
@@ -175,41 +184,72 @@ input[type="file"]::file-selector-button {
   margin-bottom: 16px;
 }
 
-/* Account summary */
+/* Account summary — left sidebar. The sidebar itself sizes to whatever
+   width .account-summary reports, so collapsing it actually reclaims the
+   grid's horizontal space instead of just hiding its contents. */
+.dashboard-sidebar {
+  flex: 0 0 auto;
+  height: 100%;
+  overflow: hidden;
+  border-right: 1px solid var(--color-bg-tertiary);
+}
+
 .account-summary {
-  flex-shrink: 0;
-  padding: 14px 20px;
+  width: 240px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  padding: 16px;
   background-color: var(--color-bg-secondary);
-  border-bottom: 1px solid var(--color-bg-tertiary);
+  box-sizing: border-box;
+  transition: width 150ms ease;
+}
+
+.account-summary--collapsed {
+  width: 40px;
+  padding: 8px 4px;
+  align-items: center;
+}
+
+.account-summary-expand {
+  width: 100%;
 }
 
 .account-summary-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  gap: 12px;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.account-summary-heading {
+  min-width: 0;
 }
 
 .account-summary-title {
-  font-size: 1.1em;
+  font-size: 1.05em;
   font-weight: 600;
+  word-break: break-word;
 }
 
 .account-summary-sub {
-  font-size: 0.85em;
+  font-size: 0.8em;
   opacity: 0.7;
   margin-top: 2px;
+  word-break: break-word;
 }
 
-.dashboard-kpi-row {
+.dashboard-kpi-column {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: 10px;
-  margin-top: 12px;
 }
 
 .kpi-card {
-  flex: 1 1 150px;
+  width: 100%;
+  box-sizing: border-box;
   background-color: var(--color-bg-tertiary);
   border-radius: var(--radius-md);
   padding: 10px 14px;
@@ -345,7 +385,19 @@ input[type="file"]::file-selector-button {
   gap: 8px;
   padding: 6px 8px;
   background-color: var(--color-bg-tertiary);
+}
+
+.panel-header.panel-drag-handle {
   cursor: move;
+}
+
+.panel-title-text {
+  font-size: 0.9em;
+  font-weight: 500;
+  padding: 4px 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .panel-title-input {
@@ -486,4 +538,71 @@ input[type="file"]::file-selector-button {
   border-right: 2px solid var(--color-accent) !important;
   border-bottom: 2px solid var(--color-accent) !important;
   opacity: 0.85;
+}
+
+/* Saved statements (its own Tauri window, full page) */
+.statements-page {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--color-bg-primary);
+  color: var(--color-fg-primary);
+  overflow: hidden;
+  text-align: left;
+}
+
+.statements-header {
+  flex-shrink: 0;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--color-bg-tertiary);
+}
+
+.statements-header h1 {
+  margin: 0;
+  font-size: 1.2em;
+}
+
+.statements-empty {
+  padding: 20px;
+  opacity: 0.7;
+}
+
+.statements-table-wrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 8px 20px 20px;
+}
+
+.statements-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9em;
+}
+
+.statements-table th {
+  text-align: left;
+  padding: 10px 12px;
+  font-size: 0.75em;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  opacity: 0.6;
+  border-bottom: 1px solid var(--color-bg-tertiary);
+}
+
+.statements-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--color-bg-tertiary);
+}
+
+.statements-table tbody tr:hover {
+  background-color: var(--color-bg-secondary);
+}
+
+.statements-row-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+  white-space: nowrap;
 }

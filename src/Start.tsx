@@ -1,6 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { listen } from "@tauri-apps/api/event";
 import "./App.css";
+import { openSavedStatementsWindow } from "./lib/statementsWindow";
 
 function StartPage() {
   const navigate = useNavigate();
@@ -12,6 +14,17 @@ function StartPage() {
       state: { file },
     });
   };
+
+  // Opening a statement from the Saved Statements window while sitting on this
+  // page should jump straight to its dashboard.
+  useEffect(() => {
+    const unlisten = listen<{ statementId: string }>("zpay://statement-selected", (event) => {
+      navigate("/dashboard", { state: { statementId: event.payload.statementId } });
+    });
+    return () => {
+      unlisten.then((fn) => fn());
+    };
+  }, [navigate]);
 
   return (
     <main className="app-page app-page--centered">
@@ -31,8 +44,9 @@ function StartPage() {
           </button>
         </div>
       </div>
-      {/* Remove this later */}
-      <button className="btn" onClick={() => navigate("/dashboard")}>Dashboard</button>
+      <button className="btn btn-secondary" onClick={() => openSavedStatementsWindow()}>
+        Saved statements
+      </button>
     </main>
   );
 }

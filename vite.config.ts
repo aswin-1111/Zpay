@@ -8,6 +8,15 @@ const host = process.env.TAURI_DEV_HOST;
 export default defineConfig(async () => ({
   plugins: [react()],
 
+  // react-draggable (used by react-grid-layout for panel drag/resize) reads
+  // process.env.DRAGGABLE_DEBUG on every drag event via a debug-log helper.
+  // The browser has no `process` global, so without this define it throws
+  // "process is not defined" the instant a drag starts, silently aborting
+  // the whole drag/resize interaction.
+  define: {
+    "process.env.DRAGGABLE_DEBUG": JSON.stringify(false),
+  },
+
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
   //
   // 1. prevent Vite from obscuring rust errors

@@ -27,19 +27,16 @@ export default function ChartEditorWindow() {
   useEffect(() => {
     async function init() {
       try {
-        const [statement, raw] = await Promise.all([
-          loadStatementFromParquet(),
-          invoke<string | null>("load_dashboards"),
-        ]);
-
+        const raw = await invoke<string | null>("load_dashboards");
         if (!raw) throw new Error("No dashboards have been saved yet.");
         const result = validateDashboardCollection(JSON.parse(raw));
         if (!result.ok) throw new Error(result.error);
 
         const dashboard = result.data.dashboards.find((d) => d.id === dashboardId);
         const panel = dashboard?.panels.find((p) => p.id === panelId);
-        if (!panel) throw new Error("That panel no longer exists.");
+        if (!dashboard || !panel) throw new Error("That panel no longer exists.");
 
+        const statement = await loadStatementFromParquet(dashboard.statementId);
         const { data, fields } = buildEnrichedDataset(statement.transactions);
         setState({ status: "ready", panel, data, fields });
       } catch (err) {

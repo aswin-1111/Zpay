@@ -1,6 +1,6 @@
 import type { IChart } from "@kanaries/graphic-walker";
 
-export const DASHBOARD_SCHEMA_VERSION = 1;
+export const DASHBOARD_SCHEMA_VERSION = 2;
 
 export type GridPosition = {
   x: number;
@@ -47,6 +47,7 @@ export type PanelSpec = {
 export type DashboardSpec = {
   id: string;
   name: string;
+  statementId: string;
   panels: PanelSpec[];
 };
 
@@ -67,15 +68,20 @@ export type DashboardCollectionFile = {
   updatedAt: string;
   appVersion: string;
   activeDashboardId: string | null;
+  activeStatementId: string | null;
   dashboards: DashboardSpec[];
 };
 
 const APP_VERSION = "0.1.0";
 
-export function createEmptyDashboard(name = "Untitled Dashboard"): DashboardSpec {
+export function createEmptyDashboard(
+  statementId: string,
+  name = "Untitled Dashboard"
+): DashboardSpec {
   return {
     id: crypto.randomUUID(),
     name,
+    statementId,
     panels: [],
   };
 }
@@ -131,13 +137,15 @@ export function buildDashboardFile(
 
 export function buildDashboardCollectionFile(
   dashboards: DashboardSpec[],
-  activeDashboardId: string | null
+  activeDashboardId: string | null,
+  activeStatementId: string | null
 ): DashboardCollectionFile {
   return {
     version: DASHBOARD_SCHEMA_VERSION,
     updatedAt: new Date().toISOString(),
     appVersion: APP_VERSION,
     activeDashboardId,
+    activeStatementId,
     dashboards,
   };
 }

@@ -51,6 +51,32 @@ const panelSpecSchema = z.object({
 const dashboardSpecSchema = z.object({
   id: z.string(),
   name: z.string(),
+  statementId: z.string(),
+  panels: z.array(panelSpecSchema),
+});
+
+const dashboardFileSchemaCurrent = z.object({
+  version: z.literal(DASHBOARD_SCHEMA_VERSION),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+  appVersion: z.string(),
+  dashboard: dashboardSpecSchema,
+});
+
+const dashboardCollectionFileSchemaCurrent = z.object({
+  version: z.literal(DASHBOARD_SCHEMA_VERSION),
+  updatedAt: z.string(),
+  appVersion: z.string(),
+  activeDashboardId: z.string().nullable(),
+  activeStatementId: z.string().nullable(),
+  dashboards: z.array(dashboardSpecSchema),
+});
+
+// Pre-v2 shape (no statementId — every dashboard implicitly belonged to the single
+// statement.parquet file that existed back then).
+const dashboardSpecSchemaV1 = z.object({
+  id: z.string(),
+  name: z.string(),
   panels: z.array(panelSpecSchema),
 });
 
@@ -59,7 +85,7 @@ const dashboardFileSchemaV1 = z.object({
   createdAt: z.string(),
   updatedAt: z.string(),
   appVersion: z.string(),
-  dashboard: dashboardSpecSchema,
+  dashboard: dashboardSpecSchemaV1,
 });
 
 const dashboardCollectionFileSchemaV1 = z.object({
@@ -67,8 +93,12 @@ const dashboardCollectionFileSchemaV1 = z.object({
   updatedAt: z.string(),
   appVersion: z.string(),
   activeDashboardId: z.string().nullable(),
-  dashboards: z.array(dashboardSpecSchema),
+  dashboards: z.array(dashboardSpecSchemaV1),
 });
+
+// Every dashboard/statement saved before multi-statement support existed is tagged
+// with this id, matching the backend's one-time `legacy.parquet` migration.
+const LEGACY_STATEMENT_ID = "legacy";
 
 export type ValidationResult =
   | { ok: true; data: DashboardFile }
@@ -78,14 +108,41 @@ export type CollectionValidationResult =
   | { ok: true; data: DashboardCollectionFile }
   | { ok: false; error: string };
 
+function tagDashboardSpecWithStatement(
+  dashboard: z.infer<typeof dashboardSpecSchemaV1>
+): z.infer<typeof dashboardSpecSchema> {
+  return { ...dashboard, statementId: LEGACY_STATEMENT_ID };
+}
+
 /**
- * Upgrades an older file shape to the current one. Identity for v1 (the only version
- * so far) — future schema changes add a step here rather than replacing it, so files
- * saved years ago keep loading.
+ * Upgrades an older dashboard-file shape to the current one. v1 → v2 tags the
+ * dashboard with the "legacy" statement id, matching the backend's one-time
+ * legacy.parquet migration, so a dashboard saved before multi-statement support
+ * existed keeps working instead of being orphaned.
  */
-function migrateVersionedFile(raw: { version: number; [k: string]: unknown }): unknown {
-  if (raw.version === DASHBOARD_SCHEMA_VERSION) {
-    return raw;
+function migrateDashboardFile(raw: { version: number; [k: string]: unknown }): unknown {
+  if (raw.version === 1) {
+    const v1 = dashboardFileSchemaV1.safeParse(raw);
+    if (!v1.success) return raw;
+    return {
+      ...v1.data,
+      version: DASHBOARD_SCHEMA_VERSION,
+      dashboard: tagDashboardSpecWithStatement(v1.data.dashboard),
+    };
+  }
+  return raw;
+}
+
+function migrateDashboardCollection(raw: { version: number; [k: string]: unknown }): unknown {
+  if (raw.version === 1) {
+    const v1 = dashboardCollectionFileSchemaV1.safeParse(raw);
+    if (!v1.success) return raw;
+    return {
+      ...v1.data,
+      version: DASHBOARD_SCHEMA_VERSION,
+      activeStatementId: LEGACY_STATEMENT_ID,
+      dashboards: v1.data.dashboards.map(tagDashboardSpecWithStatement),
+    };
   }
   return raw;
 }
@@ -115,8 +172,8 @@ export function validateDashboardFile(json: unknown): ValidationResult {
   const versionCheck = checkVersion(json);
   if (!versionCheck.ok) return versionCheck;
 
-  const migrated = migrateVersionedFile(json as { version: number; [k: string]: unknown });
-  const parsed = dashboardFileSchemaV1.safeParse(migrated);
+  const migrated = migrateDashboardFile(json as { version: number; [k: string]: unknown });
+  const parsed = dashboardFileSchemaCurrent.safeParse(migrated);
 
   if (!parsed.success) {
     return { ok: false, error: `Invalid dashboard file: ${parsed.error.message}` };
@@ -129,8 +186,8 @@ export function validateDashboardCollection(json: unknown): CollectionValidation
   const versionCheck = checkVersion(json);
   if (!versionCheck.ok) return versionCheck;
 
-  const migrated = migrateVersionedFile(json as { version: number; [k: string]: unknown });
-  const parsed = dashboardCollectionFileSchemaV1.safeParse(migrated);
+  const migrated = migrateDashboardCollection(json as { version: number; [k: string]: unknown });
+  const parsed = dashboardCollectionFileSchemaCurrent.safeParse(migrated);
 
   if (!parsed.success) {
     return { ok: false, error: `Invalid dashboard file: ${parsed.error.message}` };
