@@ -33,7 +33,13 @@ export type TextPanelConfig = {
   markdown: string;
 };
 
-export type PanelConfig = ChartPanelConfig | KpiPanelConfig | TextPanelConfig;
+// No fields — the insight cards it shows are always computed fresh from the
+// dashboard's current data (see src/lib/insights.ts), never stored.
+export type InsightPanelConfig = {
+  kind: "insight";
+};
+
+export type PanelConfig = ChartPanelConfig | KpiPanelConfig | TextPanelConfig | InsightPanelConfig;
 
 export type PanelKind = PanelConfig["kind"];
 
@@ -94,6 +100,8 @@ export function createDefaultPanelConfig(kind: PanelKind): PanelConfig {
       return { kind: "kpi", metric: "netFlow" };
     case "text":
       return { kind: "text", markdown: "" };
+    case "insight":
+      return { kind: "insight" };
   }
 }
 
@@ -118,6 +126,8 @@ function defaultTitleFor(kind: PanelKind): string {
       return "New KPI";
     case "text":
       return "Note";
+    case "insight":
+      return "Insights";
   }
 }
 
@@ -147,5 +157,26 @@ export function buildDashboardCollectionFile(
     activeDashboardId,
     activeStatementId,
     dashboards,
+  };
+}
+
+// The user-customizable template every new statement's default dashboard is seeded
+// from (edited via the "Edit Default Dashboard…" window, opened from the app menu).
+// Falls back to the built-in buildDefaultDashboardPanels() template when none is saved.
+export type DefaultDashboardTemplateFile = {
+  version: number;
+  updatedAt: string;
+  appVersion: string;
+  panels: PanelSpec[];
+};
+
+export function buildDefaultDashboardTemplateFile(
+  panels: PanelSpec[]
+): DefaultDashboardTemplateFile {
+  return {
+    version: DASHBOARD_SCHEMA_VERSION,
+    updatedAt: new Date().toISOString(),
+    appVersion: APP_VERSION,
+    panels,
   };
 }

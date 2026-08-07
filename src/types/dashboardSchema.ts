@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { DASHBOARD_SCHEMA_VERSION } from "./dashboard";
-import type { DashboardCollectionFile, DashboardFile } from "./dashboard";
+import type { DashboardCollectionFile, DashboardFile, DefaultDashboardTemplateFile } from "./dashboard";
 
 const gridPositionSchema = z.object({
   x: z.number(),
@@ -35,10 +35,15 @@ const textPanelConfigSchema = z.object({
   markdown: z.string(),
 });
 
+const insightPanelConfigSchema = z.object({
+  kind: z.literal("insight"),
+});
+
 const panelConfigSchema = z.discriminatedUnion("kind", [
   chartPanelConfigSchema,
   kpiPanelConfigSchema,
   textPanelConfigSchema,
+  insightPanelConfigSchema,
 ]);
 
 const panelSpecSchema = z.object({
@@ -70,6 +75,13 @@ const dashboardCollectionFileSchemaCurrent = z.object({
   activeDashboardId: z.string().nullable(),
   activeStatementId: z.string().nullable(),
   dashboards: z.array(dashboardSpecSchema),
+});
+
+const defaultDashboardTemplateFileSchemaCurrent = z.object({
+  version: z.literal(DASHBOARD_SCHEMA_VERSION),
+  updatedAt: z.string(),
+  appVersion: z.string(),
+  panels: z.array(panelSpecSchema),
 });
 
 // Pre-v2 shape (no statementId — every dashboard implicitly belonged to the single
@@ -106,6 +118,10 @@ export type ValidationResult =
 
 export type CollectionValidationResult =
   | { ok: true; data: DashboardCollectionFile }
+  | { ok: false; error: string };
+
+export type DefaultTemplateValidationResult =
+  | { ok: true; data: DefaultDashboardTemplateFile }
   | { ok: false; error: string };
 
 function tagDashboardSpecWithStatement(
@@ -194,4 +210,18 @@ export function validateDashboardCollection(json: unknown): CollectionValidation
   }
 
   return { ok: true, data: parsed.data as DashboardCollectionFile };
+}
+
+// No older shape exists for this file — it was introduced at the current schema
+// version, so unlike the two validators above there's no migration step here.
+export function validateDefaultDashboardTemplate(json: unknown): DefaultTemplateValidationResult {
+  const versionCheck = checkVersion(json);
+  if (!versionCheck.ok) return versionCheck;
+
+  const parsed = defaultDashboardTemplateFileSchemaCurrent.safeParse(json);
+  if (!parsed.success) {
+    return { ok: false, error: `Invalid default-dashboard template: ${parsed.error.message}` };
+  }
+
+  return { ok: true, data: parsed.data as DefaultDashboardTemplateFile };
 }

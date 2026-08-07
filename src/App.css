@@ -1,17 +1,33 @@
 :root {
-  /* Color tokens (kept identical values). */
+  /* Color tokens — this is the dark palette, and stays the default (no
+     [data-theme] attribute needed) so nothing regresses if theme init from
+     src/store/themeStore.ts is ever slow to run. Light overrides below. */
   --color-bg-primary: #1b1b1b;
   --color-bg-secondary: #222222;
   --color-bg-tertiary: #2f2f2f;
   --color-fg-primary: #dfdfdf;
   --color-accent: #e4d03c;
   --color-accent-contrast: #0f0f0f;
+  --color-danger-bg: #4a1b0c;
+  --color-danger-fg: #f0997b;
 
   /* Foundation tokens. */
   --radius-md: 10px;
   --font-family-base: Inter, Avenir, Helvetica, Arial, sans-serif;
   --font-size-base: 16px;
   --shadow-sm: -1px 2px 2px rgba(0, 0, 0, 0.2);
+}
+
+:root[data-theme="light"] {
+  --color-bg-primary: #f5f5f2;
+  --color-bg-secondary: #ffffff;
+  --color-bg-tertiary: #ececec;
+  --color-fg-primary: #1b1b1b;
+  --color-accent: #c9a600;
+  --color-accent-contrast: #0f0f0f;
+  --color-danger-bg: #fdeceb;
+  --color-danger-fg: #b3261e;
+  --shadow-sm: -1px 2px 4px rgba(0, 0, 0, 0.08);
 }
 
 html,
@@ -110,14 +126,18 @@ input[type="file"]::file-selector-button {
 }
 
 /* Loading */
+.loading-page {
+  gap: 4px;
+}
+
 .loading-spinner {
-  border: 16px solid #f3f3f3;
-  border-top: 16px solid #3498db;
+  border: 5px solid var(--color-bg-tertiary);
+  border-top: 5px solid var(--color-accent);
   border-radius: 50%;
-  width: 120px;
-  height: 120px;
-  animation: spin 2s linear infinite;
-  margin: auto;
+  width: 56px;
+  height: 56px;
+  animation: spin 0.9s linear infinite;
+  margin: 0 auto 20px;
 }
 
 @keyframes spin {
@@ -128,6 +148,24 @@ input[type="file"]::file-selector-button {
   100% {
     transform: rotate(360deg);
   }
+}
+
+.loading-status {
+  color: var(--color-fg-primary);
+  font-size: 1em;
+  font-weight: 500;
+  margin: 0;
+}
+
+.loading-filename {
+  color: var(--color-fg-primary);
+  opacity: 0.55;
+  font-size: 0.85em;
+  margin: 6px 0 0;
+  max-width: 360px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Buttons */
@@ -142,12 +180,12 @@ input[type="file"]::file-selector-button {
 }
 
 .btn-danger {
-  background-color: #4a1b0c;
-  color: #f0997b;
+  background-color: var(--color-danger-bg);
+  color: var(--color-danger-fg);
 }
 
 .form-error {
-  color: #f0997b;
+  color: var(--color-danger-fg);
   font-size: 0.85em;
   margin: 6px 0 0;
 }
@@ -459,6 +497,51 @@ input[type="file"]::file-selector-button {
   font-size: 1.8em;
 }
 
+/* Insights panel (statistics-only auto-generated insight cards, no LLM) */
+.insights-panel {
+  height: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  gap: 12px;
+  padding: 12px;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+
+.insight-card {
+  flex: 1 1 220px;
+  background-color: var(--color-bg-tertiary);
+  border-radius: var(--radius-md);
+  padding: 10px 14px;
+  border-left: 3px solid var(--color-fg-primary);
+  box-shadow: var(--shadow-sm);
+}
+
+.insight-card--positive {
+  border-left-color: #4caf50;
+}
+
+.insight-card--negative {
+  border-left-color: #e0645a;
+}
+
+.insight-card--neutral {
+  border-left-color: var(--color-accent);
+}
+
+.insight-card-title {
+  font-weight: 600;
+  font-size: 0.9em;
+}
+
+.insight-card-detail {
+  margin-top: 4px;
+  font-size: 0.8em;
+  opacity: 0.8;
+  line-height: 1.4;
+}
+
 /* Text panel */
 .text-panel-content {
   height: 100%;
@@ -521,6 +604,74 @@ input[type="file"]::file-selector-button {
   flex: 1 1 auto;
   min-height: 0;
   display: flex;
+}
+
+/* AI chart-assistant prompt bar, shown inside the chart editor window */
+.ai-prompt-bar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background-color: var(--color-bg-secondary);
+  border-bottom: 1px solid var(--color-bg-tertiary);
+}
+
+.ai-prompt-bar--disabled {
+  color: var(--color-fg-primary);
+  opacity: 0.6;
+  font-size: 0.85em;
+}
+
+.ai-prompt-input {
+  flex: 1 1 auto;
+  font-family: inherit;
+  font-size: 0.9em;
+  color: var(--color-fg-primary);
+  background-color: var(--color-bg-tertiary);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  padding: 8px 12px;
+}
+
+.ai-prompt-input:focus {
+  outline: none;
+  border-color: var(--color-accent);
+}
+
+.ai-prompt-error {
+  padding: 0 16px;
+  margin: 8px 0 0;
+}
+
+/* AI settings window */
+.ai-settings-body {
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 480px;
+  overflow-y: auto;
+  text-align: left;
+}
+
+.ai-settings-body .form-label {
+  margin-top: 12px;
+  font-size: 0.85em;
+  opacity: 0.8;
+}
+
+.ai-settings-body input,
+.ai-settings-body select {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.ai-settings-hint {
+  margin-top: 16px;
+  font-size: 0.8em;
+  opacity: 0.6;
+  line-height: 1.4;
 }
 
 /* react-grid-layout's default resize handle is a barely-visible dark smudge —

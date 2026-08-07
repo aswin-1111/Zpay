@@ -5,7 +5,9 @@
   "windows": [
     "main",
     "chart-editor",
-    "statements"
+    "statements",
+    "default-dashboard-editor",
+    "ai-settings"
   ],
   "permissions": [
     "core:default",

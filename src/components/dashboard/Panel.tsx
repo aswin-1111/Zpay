@@ -2,11 +2,13 @@ import { useState } from "react";
 import { GraphicRenderer } from "@kanaries/graphic-walker";
 import type { PanelSpec } from "../../types/dashboard";
 import { useDashboardStore } from "../../store/dashboardStore";
+import { useThemeStore } from "../../store/themeStore";
 import { useDashboardData } from "../../context/DashboardDataContext";
 import { openChartEditorWindow } from "../../lib/chartEditorWindow";
 import { zpayGwUiTheme } from "../../theme/graphicWalkerTheme";
 import KpiPanel from "./KpiPanel";
 import TextPanel from "./TextPanel";
+import InsightsPanel from "./InsightsPanel";
 
 export default function Panel({
   panel,
@@ -16,6 +18,7 @@ export default function Panel({
   dashboardId: string;
 }) {
   const { data, fields } = useDashboardData();
+  const theme = useThemeStore((s) => s.resolved);
   const editMode = useDashboardStore((s) => s.editMode);
   const updatePanelTitle = useDashboardStore((s) => s.updatePanelTitle);
   const updatePanelConfig = useDashboardStore((s) => s.updatePanelConfig);
@@ -69,7 +72,7 @@ export default function Panel({
               chart={[panel.config.chart]}
               data={data}
               fields={fields}
-              appearance="dark"
+              appearance={theme}
               uiTheme={zpayGwUiTheme}
               keepAlive={false}
               containerStyle={{ height: "100%" }}
@@ -80,6 +83,7 @@ export default function Panel({
             </div>
           ))}
         {panel.config.kind === "kpi" && <KpiPanel config={panel.config} />}
+        {panel.config.kind === "insight" && <InsightsPanel />}
         {panel.config.kind === "text" && (
           <TextPanel
             config={panel.config}

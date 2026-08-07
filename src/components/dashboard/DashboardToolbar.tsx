@@ -128,6 +128,7 @@ export default function DashboardToolbar() {
                 <button onClick={() => handleAdd("chart")}>Chart</button>
                 <button onClick={() => handleAdd("kpi")}>KPI</button>
                 <button onClick={() => handleAdd("text")}>Text</button>
+                <button onClick={() => handleAdd("insight")}>Insights</button>
               </div>
             )}
           </div>

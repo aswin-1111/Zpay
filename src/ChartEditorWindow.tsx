@@ -9,7 +9,10 @@ import "./App.css";
 import { loadStatementFromParquet, buildEnrichedDataset, type EnrichedRow } from "./data/statement";
 import { validateDashboardCollection } from "./types/dashboardSchema";
 import type { PanelSpec } from "./types/dashboard";
+import type { AiSettingsPublic } from "./types/ai";
+import { parseAiJsonResponse, validateAndBuildAiChart } from "./lib/aiChartSpec";
 import { zpayGwUiTheme } from "./theme/graphicWalkerTheme";
+import { useThemeStore } from "./store/themeStore";
 
 type LoadState =
   | { status: "loading" }
@@ -23,6 +26,17 @@ export default function ChartEditorWindow() {
 
   const [state, setState] = useState<LoadState>({ status: "loading" });
   const storeRef = useRef<VizSpecStore | null>(null);
+  const theme = useThemeStore((s) => s.resolved);
+  const [aiConfigured, setAiConfigured] = useState<boolean | null>(null);
+  const [aiPrompt, setAiPrompt] = useState("");
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+
+  useEffect(() => {
+    invoke<AiSettingsPublic | null>("load_ai_settings_public")
+      .then((settings) => setAiConfigured(Boolean(settings?.hasKey)))
+      .catch(() => setAiConfigured(false));
+  }, []);
 
   useEffect(() => {
     async function init() {
@@ -52,6 +66,33 @@ export default function ChartEditorWindow() {
 
   const handleCancel = () => {
     getCurrentWindow().close();
+  };
+
+  const handleGenerate = async () => {
+    if (state.status !== "ready" || !aiPrompt.trim() || aiBusy) return;
+    setAiBusy(true);
+    setAiError(null);
+    try {
+      const fieldsPayload = state.fields.map((f) => ({
+        fid: f.fid,
+        name: f.name ?? f.fid,
+        semanticType: f.semanticType,
+      }));
+      const raw = await invoke<string>("ask_ai_for_chart", {
+        prompt: aiPrompt,
+        fields: fieldsPayload,
+      });
+      const result = validateAndBuildAiChart(parseAiJsonResponse(raw), state.fields);
+      if (!result.ok) {
+        setAiError(result.error);
+        return;
+      }
+      storeRef.current?.importCode([result.chart]);
+    } catch (err) {
+      setAiError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setAiBusy(false);
+    }
   };
 
   const handleSave = async () => {
@@ -98,13 +139,41 @@ export default function ChartEditorWindow() {
           </button>
         </div>
       </div>
+      {aiConfigured === true && (
+        <div className="ai-prompt-bar">
+          <input
+            className="ai-prompt-input"
+            placeholder="Describe a chart, e.g. “monthly spend by category”"
+            value={aiPrompt}
+            onChange={(e) => setAiPrompt(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") handleGenerate();
+            }}
+            disabled={aiBusy}
+          />
+          <button
+            className="btn btn-secondary"
+            disabled={aiBusy || !aiPrompt.trim()}
+            onClick={handleGenerate}
+          >
+            {aiBusy ? "Generating…" : "✨ Generate"}
+          </button>
+        </div>
+      )}
+      {aiConfigured === false && (
+        <div className="ai-prompt-bar ai-prompt-bar--disabled">
+          Configure an API key via the app menu → AI Assistant → Configure API Key… to generate
+          charts from a description.
+        </div>
+      )}
+      {aiError && <p className="form-error ai-prompt-error">{aiError}</p>}
       <div className="chart-editor-body">
         <GraphicWalker
           storeRef={storeRef}
           chart={initialChart ? [initialChart as IChart] : undefined}
           data={state.data}
           fields={state.fields}
-          appearance="dark"
+          appearance={theme}
           uiTheme={zpayGwUiTheme}
           hideChartNav
           keepAlive={false}

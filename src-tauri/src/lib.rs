@@ -12,7 +12,8 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use parquet::file::metadata::KeyValue;
 use serde::{Deserialize, Serialize};
-use tauri::Manager;
+use tauri::menu::{Menu, MenuItem, Submenu};
+use tauri::{Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
 
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -390,6 +391,23 @@ fn load_dashboards(app: tauri::AppHandle) -> Result<Option<String>, String> {
 }
 
 #[tauri::command]
+fn save_default_dashboard_template(app: tauri::AppHandle, contents: String) -> Result<(), String> {
+    let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    std::fs::write(dir.join("default_dashboard_template.json"), contents).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn load_default_dashboard_template(app: tauri::AppHandle) -> Result<Option<String>, String> {
+    let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    match std::fs::read_to_string(dir.join("default_dashboard_template.json")) {
+        Ok(contents) => Ok(Some(contents)),
+        Err(e) if e.kind() == ErrorKind::NotFound => Ok(None),
+        Err(e) => Err(e.to_string()),
+    }
+}
+
+#[tauri::command]
 fn export_dashboard_file(path: String, contents: String) -> Result<(), String> {
     std::fs::write(path, contents).map_err(|e| e.to_string())
 }
@@ -397,6 +415,224 @@ fn export_dashboard_file(path: String, contents: String) -> Result<(), String> {
 #[tauri::command]
 fn import_dashboard_file(path: String) -> Result<String, String> {
     std::fs::read_to_string(path).map_err(|e| e.to_string())
+}
+
+// AI chart assistant — opt-in, bring-your-own API key. The frontend never sends
+// transaction rows here, only the field schema (fid/name/semanticType) plus the
+// user's free-text prompt; see src/lib/aiChartSpec.ts for how the (narrow,
+// fully-validated) response is turned into a real chart.
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct AiSettings {
+    provider: String,
+    api_key: String,
+    base_url: Option<String>,
+    model: String,
+}
+
+// Sent to the frontend in place of AiSettings — never includes the real key.
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct AiSettingsPublic {
+    provider: String,
+    base_url: Option<String>,
+    model: String,
+    has_key: bool,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct AiFieldInfo {
+    fid: String,
+    name: String,
+    semantic_type: String,
+}
+
+fn ai_settings_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+    Ok(app.path().app_data_dir().map_err(|e| e.to_string())?.join("ai_settings.json"))
+}
+
+fn read_ai_settings(app: &tauri::AppHandle) -> Result<Option<AiSettings>, String> {
+    match std::fs::read_to_string(ai_settings_path(app)?) {
+        Ok(contents) => serde_json::from_str(&contents).map(Some).map_err(|e| e.to_string()),
+        Err(e) if e.kind() == ErrorKind::NotFound => Ok(None),
+        Err(e) => Err(e.to_string()),
+    }
+}
+
+#[tauri::command]
+fn load_ai_settings_public(app: tauri::AppHandle) -> Result<Option<AiSettingsPublic>, String> {
+    let settings = read_ai_settings(&app)?;
+    Ok(settings.map(|s| AiSettingsPublic {
+        provider: s.provider,
+        base_url: s.base_url,
+        model: s.model,
+        has_key: !s.api_key.is_empty(),
+    }))
+}
+
+#[tauri::command]
+fn save_ai_settings(
+    app: tauri::AppHandle,
+    provider: String,
+    api_key: Option<String>,
+    base_url: Option<String>,
+    model: String,
+) -> Result<(), String> {
+    // An empty/absent api_key means "keep whatever key is already saved" — the
+    // settings window never re-displays the real key, so re-saving provider/model
+    // shouldn't force the user to paste the key in again.
+    let existing_key = read_ai_settings(&app)?.map(|s| s.api_key).unwrap_or_default();
+    let resolved_key = api_key.filter(|k| !k.is_empty()).unwrap_or(existing_key);
+
+    let settings = AiSettings {
+        provider,
+        api_key: resolved_key,
+        base_url,
+        model,
+    };
+    let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let contents = serde_json::to_string(&settings).map_err(|e| e.to_string())?;
+    std::fs::write(ai_settings_path(&app)?, contents).map_err(|e| e.to_string())
+}
+
+fn build_ai_system_prompt(fields: &[AiFieldInfo]) -> String {
+    let field_list = fields
+        .iter()
+        .map(|f| format!("- {} (\"{}\", type: {})", f.fid, f.name, f.semantic_type))
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    format!(
+        "You are a charting assistant for a personal-finance dashboard app. Given a user's request, respond with ONLY a single JSON object (no prose, no markdown code fences) describing a chart, using this exact shape:\n\
+{{\n\
+  \"name\": string (a short chart title),\n\
+  \"geoms\": array containing exactly one of: \"bar\", \"line\", \"area\", \"point\", \"arc\",\n\
+  \"columns\": array of {{\"fid\": string, \"aggName\"?: string}} (x-axis / category fields),\n\
+  \"rows\": array of {{\"fid\": string, \"aggName\"?: string}} (y-axis / measure fields),\n\
+  \"color\"?: array of {{\"fid\": string}} (optional color/series split),\n\
+  \"theta\"?: array of {{\"fid\": string, \"aggName\"?: string}} (only for \"arc\"/pie charts, the measure being split)\n\
+}}\n\
+\n\
+Only use these exact field ids (fid) — never invent one:\n\
+{field_list}\n\
+- gw_count_fid (\"Count\", type: quantitative) — use this as a row/theta field with aggName \"count\" when the user wants to count records rather than sum a real column.\n\
+\n\
+Rules:\n\
+- Every field reference must use one of the fid values listed above, verbatim.\n\
+- aggName, when present, must be one of: sum, mean, count, max, min, median.\n\
+- Only include \"color\" if it meaningfully splits the data (e.g. by Debit/Credit type).\n\
+- Only include \"theta\" when geoms is [\"arc\"]; otherwise omit it.\n\
+- Respond with the JSON object and nothing else."
+    )
+}
+
+async fn call_openai_for_chart(
+    settings: &AiSettings,
+    system_prompt: &str,
+    prompt: &str,
+) -> Result<String, String> {
+    let base = settings
+        .base_url
+        .clone()
+        .unwrap_or_else(|| "https://api.openai.com/v1".to_string());
+    let url = format!("{}/chat/completions", base.trim_end_matches('/'));
+
+    let body = serde_json::json!({
+        "model": settings.model,
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": prompt},
+        ],
+        "response_format": {"type": "json_object"},
+    });
+
+    let client = reqwest::Client::new();
+    let resp = client
+        .post(&url)
+        .bearer_auth(&settings.api_key)
+        .json(&body)
+        .send()
+        .await
+        .map_err(|e| format!("Request to OpenAI failed: {e}"))?;
+
+    if !resp.status().is_success() {
+        let status = resp.status();
+        let text = resp.text().await.unwrap_or_default();
+        return Err(format!("OpenAI returned {status}: {text}"));
+    }
+
+    let json: serde_json::Value = resp
+        .json()
+        .await
+        .map_err(|e| format!("Could not parse OpenAI's response: {e}"))?;
+
+    json["choices"][0]["message"]["content"]
+        .as_str()
+        .map(|s| s.to_string())
+        .ok_or_else(|| "OpenAI's response did not contain any message content.".to_string())
+}
+
+async fn call_anthropic_for_chart(
+    settings: &AiSettings,
+    system_prompt: &str,
+    prompt: &str,
+) -> Result<String, String> {
+    let body = serde_json::json!({
+        "model": settings.model,
+        "max_tokens": 1024,
+        "system": system_prompt,
+        "messages": [
+            {"role": "user", "content": prompt},
+        ],
+    });
+
+    let client = reqwest::Client::new();
+    let resp = client
+        .post("https://api.anthropic.com/v1/messages")
+        .header("x-api-key", &settings.api_key)
+        .header("anthropic-version", "2023-06-01")
+        .json(&body)
+        .send()
+        .await
+        .map_err(|e| format!("Request to Anthropic failed: {e}"))?;
+
+    if !resp.status().is_success() {
+        let status = resp.status();
+        let text = resp.text().await.unwrap_or_default();
+        return Err(format!("Anthropic returned {status}: {text}"));
+    }
+
+    let json: serde_json::Value = resp
+        .json()
+        .await
+        .map_err(|e| format!("Could not parse Anthropic's response: {e}"))?;
+
+    json["content"][0]["text"]
+        .as_str()
+        .map(|s| s.to_string())
+        .ok_or_else(|| "Anthropic's response did not contain any text content.".to_string())
+}
+
+#[tauri::command]
+async fn ask_ai_for_chart(
+    app: tauri::AppHandle,
+    prompt: String,
+    fields: Vec<AiFieldInfo>,
+) -> Result<String, String> {
+    let settings = read_ai_settings(&app)?.ok_or_else(|| {
+        "AI isn't configured yet — use the app menu → AI Assistant → Configure API Key… first."
+            .to_string()
+    })?;
+
+    let system_prompt = build_ai_system_prompt(&fields);
+
+    match settings.provider.as_str() {
+        "openai" => call_openai_for_chart(&settings, &system_prompt, &prompt).await,
+        "anthropic" => call_anthropic_for_chart(&settings, &system_prompt, &prompt).await,
+        other => Err(format!("Unknown AI provider: {other}")),
+    }
 }
 
 fn account_to_metadata(account: &AccountDetails) -> HashMap<String, String> {
@@ -438,12 +674,196 @@ fn account_to_metadata(account: &AccountDetails) -> HashMap<String, String> {
 }
 
 
+const DEFAULT_DASHBOARD_EDITOR_LABEL: &str = "default-dashboard-editor";
+const EDIT_DEFAULT_DASHBOARD_MENU_ID: &str = "edit-default-dashboard";
+
+// Opens (or focuses, if already open) the window that lets the user customize the
+// panels/chart types every new statement's default dashboard is seeded with.
+fn open_default_dashboard_editor(app: &tauri::AppHandle) {
+    if let Some(existing) = app.get_webview_window(DEFAULT_DASHBOARD_EDITOR_LABEL) {
+        let _ = existing.set_focus();
+        return;
+    }
+
+    let _ = WebviewWindowBuilder::new(
+        app,
+        DEFAULT_DASHBOARD_EDITOR_LABEL,
+        WebviewUrl::App("index.html?window=default-dashboard-editor".into()),
+    )
+    .title("Edit Default Dashboard")
+    .inner_size(1200.0, 800.0)
+    .min_inner_size(800.0, 600.0)
+    .build();
+}
+
+// Light/dark/system theme, toggled from the native "View" menu only (no in-app
+// control). The menu is the source of truth, not localStorage or frontend
+// state — its own checked state has to reflect the current preference at every
+// app launch, before any webview has run a line of JS.
+#[derive(Serialize, Deserialize)]
+struct ThemePreference {
+    theme: String,
+}
+
+fn theme_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+    Ok(app.path().app_data_dir().map_err(|e| e.to_string())?.join("theme.json"))
+}
+
+fn read_theme_preference(app: &tauri::AppHandle) -> Result<String, String> {
+    match std::fs::read_to_string(theme_path(app)?) {
+        Ok(contents) => {
+            let pref: ThemePreference =
+                serde_json::from_str(&contents).map_err(|e| e.to_string())?;
+            Ok(pref.theme)
+        }
+        Err(e) if e.kind() == ErrorKind::NotFound => Ok("system".to_string()),
+        Err(e) => Err(e.to_string()),
+    }
+}
+
+fn write_theme_preference(app: &tauri::AppHandle, theme: &str) -> Result<(), String> {
+    let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let contents = serde_json::to_string(&ThemePreference {
+        theme: theme.to_string(),
+    })
+    .map_err(|e| e.to_string())?;
+    std::fs::write(theme_path(app)?, contents).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn load_theme_preference(app: tauri::AppHandle) -> Result<String, String> {
+    read_theme_preference(&app)
+}
+
+struct ThemeMenuItems {
+    system: tauri::menu::CheckMenuItem<tauri::Wry>,
+    light: tauri::menu::CheckMenuItem<tauri::Wry>,
+    dark: tauri::menu::CheckMenuItem<tauri::Wry>,
+}
+
+const THEME_SYSTEM_MENU_ID: &str = "theme-system";
+const THEME_LIGHT_MENU_ID: &str = "theme-light";
+const THEME_DARK_MENU_ID: &str = "theme-dark";
+
+// Checks exactly the item matching `theme`, persists the choice, and notifies
+// every open window (main + any chart-editor/statements/etc. windows) so they
+// repaint immediately instead of only on next launch.
+fn apply_theme_preference(app: &tauri::AppHandle, theme: &str) {
+    if let Some(items) = app.try_state::<ThemeMenuItems>() {
+        let _ = items.system.set_checked(theme == "system");
+        let _ = items.light.set_checked(theme == "light");
+        let _ = items.dark.set_checked(theme == "dark");
+    }
+    let _ = write_theme_preference(app, theme);
+    let _ = app.emit("zpay://theme-changed", theme);
+}
+
+const AI_SETTINGS_LABEL: &str = "ai-settings";
+const CONFIGURE_AI_MENU_ID: &str = "configure-ai-key";
+
+// Opens (or focuses, if already open) the AI-assistant settings window.
+fn open_ai_settings(app: &tauri::AppHandle) {
+    if let Some(existing) = app.get_webview_window(AI_SETTINGS_LABEL) {
+        let _ = existing.set_focus();
+        return;
+    }
+
+    let _ = WebviewWindowBuilder::new(
+        app,
+        AI_SETTINGS_LABEL,
+        WebviewUrl::App("index.html?window=ai-settings".into()),
+    )
+    .title("AI Assistant Settings")
+    .inner_size(560.0, 620.0)
+    .min_inner_size(420.0, 480.0)
+    .build();
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
+        .setup(|app| {
+            let handle = app.handle();
+            let menu = Menu::default(handle)?;
+            let edit_default_dashboard_item = MenuItem::with_id(
+                handle,
+                EDIT_DEFAULT_DASHBOARD_MENU_ID,
+                "Edit Default Dashboard…",
+                true,
+                None::<&str>,
+            )?;
+            let dashboard_menu =
+                Submenu::with_items(handle, "Dashboard", true, &[&edit_default_dashboard_item])?;
+            menu.append(&dashboard_menu)?;
+
+            let configure_ai_item = MenuItem::with_id(
+                handle,
+                CONFIGURE_AI_MENU_ID,
+                "Configure API Key…",
+                true,
+                None::<&str>,
+            )?;
+            let ai_menu = Submenu::with_items(handle, "AI Assistant", true, &[&configure_ai_item])?;
+            menu.append(&ai_menu)?;
+
+            let current_theme = read_theme_preference(handle).unwrap_or_else(|_| "system".to_string());
+            let theme_system_item = tauri::menu::CheckMenuItem::with_id(
+                handle,
+                THEME_SYSTEM_MENU_ID,
+                "System",
+                true,
+                current_theme == "system",
+                None::<&str>,
+            )?;
+            let theme_light_item = tauri::menu::CheckMenuItem::with_id(
+                handle,
+                THEME_LIGHT_MENU_ID,
+                "Light",
+                true,
+                current_theme == "light",
+                None::<&str>,
+            )?;
+            let theme_dark_item = tauri::menu::CheckMenuItem::with_id(
+                handle,
+                THEME_DARK_MENU_ID,
+                "Dark",
+                true,
+                current_theme == "dark",
+                None::<&str>,
+            )?;
+            let view_menu = Submenu::with_items(
+                handle,
+                "View",
+                true,
+                &[&theme_system_item, &theme_light_item, &theme_dark_item],
+            )?;
+            menu.append(&view_menu)?;
+            app.manage(ThemeMenuItems {
+                system: theme_system_item,
+                light: theme_light_item,
+                dark: theme_dark_item,
+            });
+
+            app.set_menu(menu)?;
+            Ok(())
+        })
+        .on_menu_event(|app_handle, event| {
+            if event.id() == EDIT_DEFAULT_DASHBOARD_MENU_ID {
+                open_default_dashboard_editor(app_handle);
+            } else if event.id() == CONFIGURE_AI_MENU_ID {
+                open_ai_settings(app_handle);
+            } else if event.id() == THEME_SYSTEM_MENU_ID {
+                apply_theme_preference(app_handle, "system");
+            } else if event.id() == THEME_LIGHT_MENU_ID {
+                apply_theme_preference(app_handle, "light");
+            } else if event.id() == THEME_DARK_MENU_ID {
+                apply_theme_preference(app_handle, "dark");
+            }
+        })
         .invoke_handler(tauri::generate_handler![
             save_statement,
             load_statement,
@@ -451,8 +871,14 @@ pub fn run() {
             delete_statement,
             save_dashboards,
             load_dashboards,
+            save_default_dashboard_template,
+            load_default_dashboard_template,
             export_dashboard_file,
-            import_dashboard_file
+            import_dashboard_file,
+            load_ai_settings_public,
+            save_ai_settings,
+            ask_ai_for_chart,
+            load_theme_preference
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

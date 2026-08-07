@@ -1,19 +1,26 @@
 import { useMemo } from "react";
 import { create } from "zustand";
 import { invoke } from "@tauri-apps/api/core";
+import { emit } from "@tauri-apps/api/event";
 import type { IChart } from "@kanaries/graphic-walker";
 import type { Layout } from "react-grid-layout";
 import {
   buildDashboardCollectionFile,
   buildDashboardFile,
+  buildDefaultDashboardTemplateFile,
   createEmptyDashboard,
   createPanel,
   type DashboardSpec,
   type PanelConfig,
   type PanelKind,
+  type PanelSpec,
 } from "../types/dashboard";
 import type { DashboardFile } from "../types/dashboard";
-import { validateDashboardCollection, validateDashboardFile } from "../types/dashboardSchema";
+import {
+  validateDashboardCollection,
+  validateDashboardFile,
+  validateDefaultDashboardTemplate,
+} from "../types/dashboardSchema";
 import { createDefaultDashboard } from "../lib/defaultDashboard";
 
 const AUTOSAVE_DEBOUNCE_MS = 800;
@@ -22,12 +29,14 @@ const DEFAULT_SIZE: Record<PanelKind, { w: number; h: number }> = {
   chart: { w: 6, h: 8 },
   kpi: { w: 3, h: 3 },
   text: { w: 4, h: 4 },
+  insight: { w: 12, h: 6 },
 };
 
 export const MIN_SIZE: Record<PanelKind, { minW: number; minH: number }> = {
   chart: { minW: 3, minH: 4 },
   kpi: { minW: 2, minH: 3 },
   text: { minW: 2, minH: 2 },
+  insight: { minW: 4, minH: 3 },
 };
 
 let autosaveTimer: ReturnType<typeof setTimeout> | null = null;
@@ -37,8 +46,12 @@ type DashboardStore = {
   activeDashboardId: string | null;
   activeStatementId: string | null;
   editMode: boolean;
+  defaultTemplate: PanelSpec[] | null;
+  autosaveEnabled: boolean;
 
   load: () => Promise<void>;
+  loadDefaultTemplate: () => Promise<void>;
+  saveDefaultTemplate: (panels: PanelSpec[]) => Promise<void>;
   selectStatement: (statementId: string) => void;
   dropDashboardsForStatement: (statementId: string) => void;
   createNew: (name?: string) => void;
@@ -59,6 +72,12 @@ type DashboardStore = {
 };
 
 function scheduleAutosave(get: () => DashboardStore) {
+  // The default-dashboard-template editor window reuses this same store module
+  // (loaded fresh in its own webview) to get panel add/duplicate/delete/edit for
+  // free, but it seeds a synthetic dashboard that must never be written into the
+  // real dashboards.json — doing so would overwrite every real saved dashboard
+  // with just that one fake entry. That window disables autosave on init.
+  if (!get().autosaveEnabled) return;
   if (autosaveTimer) clearTimeout(autosaveTimer);
   autosaveTimer = setTimeout(() => {
     const { dashboards, activeDashboardId, activeStatementId } = get();
@@ -95,6 +114,8 @@ export const useDashboardStore = create<DashboardStore>((set, get) => ({
   activeDashboardId: null,
   activeStatementId: null,
   editMode: false,
+  defaultTemplate: null,
+  autosaveEnabled: true,
 
   load: async () => {
     const raw = await invoke<string | null>("load_dashboards");
@@ -116,16 +137,41 @@ export const useDashboardStore = create<DashboardStore>((set, get) => ({
     set({ dashboards, activeDashboardId: validActiveId, activeStatementId, editMode: false });
   },
 
+  // The user-customized template new statements' default dashboards are seeded
+  // from (see the "Edit Default Dashboard…" app-menu window). Falls back to the
+  // built-in template in defaultDashboard.ts when nothing has been saved yet.
+  loadDefaultTemplate: async () => {
+    const raw = await invoke<string | null>("load_default_dashboard_template");
+    if (!raw) {
+      set({ defaultTemplate: null });
+      return;
+    }
+    const result = validateDefaultDashboardTemplate(JSON.parse(raw));
+    if (!result.ok) {
+      console.error("Stored default-dashboard template failed validation:", result.error);
+      set({ defaultTemplate: null });
+      return;
+    }
+    set({ defaultTemplate: result.data.panels });
+  },
+
+  saveDefaultTemplate: async (panels) => {
+    const file = buildDefaultDashboardTemplateFile(panels);
+    await invoke("save_default_dashboard_template", { contents: JSON.stringify(file) });
+    set({ defaultTemplate: panels });
+    emit("zpay://default-template-updated");
+  },
+
   // Switches to the given statement. If it has no dashboards yet, a populated
   // default one is created for it immediately (rather than showing an empty grid).
   selectStatement: (statementId) => {
-    const { dashboards } = get();
+    const { dashboards, defaultTemplate } = get();
     const existing = dashboards.filter((d) => d.statementId === statementId);
     if (existing.length > 0) {
       set({ activeStatementId: statementId, activeDashboardId: existing[0].id, editMode: false });
       return;
     }
-    const dashboard = createDefaultDashboard(statementId);
+    const dashboard = createDefaultDashboard(statementId, defaultTemplate ?? undefined);
     set({
       dashboards: [...dashboards, dashboard],
       activeStatementId: statementId,

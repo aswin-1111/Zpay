@@ -32,6 +32,7 @@ export default function DashboardPage() {
   const [state, setState] = useState<LoadState>({ status: "loading" });
   const dashboards = useDashboardsForActiveStatement();
   const load = useDashboardStore((s) => s.load);
+  const loadDefaultTemplate = useDashboardStore((s) => s.loadDefaultTemplate);
   const selectStatement = useDashboardStore((s) => s.selectStatement);
   const dropDashboardsForStatement = useDashboardStore((s) => s.dropDashboardsForStatement);
   const updatePanelChart = useDashboardStore((s) => s.updatePanelChart);
@@ -65,7 +66,7 @@ export default function DashboardPage() {
         console.error("Failed to maximize:", e);
       }
 
-      await load();
+      await Promise.all([load(), loadDefaultTemplate()]);
 
       const navigatedStatementId = (location.state as { statementId?: string } | null)
         ?.statementId;
@@ -111,6 +112,18 @@ export default function DashboardPage() {
       unlisten.then((fn) => fn());
     };
   }, [dropDashboardsForStatement]);
+
+  // Fired by the default-dashboard-template editor window (opened from the app
+  // menu) whenever the user saves changes, so newly-created default dashboards
+  // pick up the edit without requiring a restart of the main window.
+  useEffect(() => {
+    const unlisten = listen("zpay://default-template-updated", () => {
+      loadDefaultTemplate();
+    });
+    return () => {
+      unlisten.then((fn) => fn());
+    };
+  }, [loadDefaultTemplate]);
 
   // The chart editor runs in its own Tauri window (so GraphicWalker gets full
   // screen space instead of being clipped inside a modal) and reports back here.

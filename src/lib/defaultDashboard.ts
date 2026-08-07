@@ -33,12 +33,22 @@ function chartPanel(
   };
 }
 
+function insightPanel(): PanelSpec {
+  return {
+    id: crypto.randomUUID(),
+    title: "Insights",
+    layout: { x: 0, y: 3, w: 12, h: 6 },
+    config: { kind: "insight" },
+  };
+}
+
 export function buildDefaultDashboardPanels(): PanelSpec[] {
   const kpiPanels = KPI_ROW.map((metric, i) => kpiPanel(metric, i * 2));
+  const insights = insightPanel();
 
   const balanceOverTime = chartPanel(
     "Balance over time",
-    { x: 0, y: 3, w: 12, h: 8 },
+    { x: 0, y: 9, w: 12, h: 8 },
     buildDefaultChart({
       visId: crypto.randomUUID(),
       name: "Balance over time",
@@ -50,7 +60,7 @@ export function buildDefaultDashboardPanels(): PanelSpec[] {
 
   const monthlyCreditDebit = chartPanel(
     "Monthly credit vs debit",
-    { x: 0, y: 11, w: 6, h: 8 },
+    { x: 0, y: 17, w: 6, h: 8 },
     buildDefaultChart({
       visId: crypto.randomUUID(),
       name: "Monthly credit vs debit",
@@ -63,7 +73,7 @@ export function buildDefaultDashboardPanels(): PanelSpec[] {
 
   const debitCreditSplit = chartPanel(
     "Debit vs credit split",
-    { x: 6, y: 11, w: 3, h: 8 },
+    { x: 6, y: 17, w: 3, h: 8 },
     buildDefaultChart({
       visId: crypto.randomUUID(),
       name: "Debit vs credit split",
@@ -75,7 +85,7 @@ export function buildDefaultDashboardPanels(): PanelSpec[] {
 
   const weekdayActivity = chartPanel(
     "Activity by weekday",
-    { x: 9, y: 11, w: 3, h: 8 },
+    { x: 9, y: 17, w: 3, h: 8 },
     buildDefaultChart({
       visId: crypto.randomUUID(),
       name: "Activity by weekday",
@@ -87,6 +97,7 @@ export function buildDefaultDashboardPanels(): PanelSpec[] {
 
   return [
     ...kpiPanels,
+    insights,
     balanceOverTime,
     monthlyCreditDebit,
     debitCreditSplit,
@@ -94,11 +105,26 @@ export function buildDefaultDashboardPanels(): PanelSpec[] {
   ];
 }
 
-export function createDefaultDashboard(statementId: string, name = "Overview"): DashboardSpec {
+// Panel ids must be unique per dashboard instance — reusing a saved template's panel
+// objects as-is across multiple new statements would give every statement's default
+// dashboard the exact same panel ids, which breaks id-keyed lookups (GridLayout,
+// updatePanelTitle/Chart/Config, etc.) the moment more than one is in memory at once.
+export function cloneTemplatePanels(panels: PanelSpec[]): PanelSpec[] {
+  return panels.map((panel) => ({
+    ...structuredClone(panel),
+    id: crypto.randomUUID(),
+  }));
+}
+
+export function createDefaultDashboard(
+  statementId: string,
+  template?: PanelSpec[],
+  name = "Overview"
+): DashboardSpec {
   return {
     id: crypto.randomUUID(),
     name,
     statementId,
-    panels: buildDefaultDashboardPanels(),
+    panels: template ? cloneTemplatePanels(template) : buildDefaultDashboardPanels(),
   };
 }
